@@ -9,40 +9,81 @@ import java.sql.ResultSet;
 public class AuthManager {
 
     // Registering user
-    public static boolean registerUser(String username,String plainTextPassword){
-        String hashedPassword=PasswordHasher.hash(plainTextPassword);
-        String SQL="INSERT INTO users(username,pass_hash) VALUES(?,?)";
 
-        try(Connection conn=DatabaseManager.getConnection();
-        PreparedStatement pstmt=conn.prepareStatement(SQL)){
-            pstmt.setString(1,username);
-            pstmt.setString(2,hashedPassword);
+    public static boolean registerUser(String username, String plainTextPassword, String securityQuestion, String securityAnswer) {
+
+        // 1. Scramble the password
+        String hashedPassword = PasswordHasher.hash(plainTextPassword);
+
+        // 2. Normalize and scramble the security answer
+        String normalizedAnswer = securityAnswer.trim().toLowerCase();
+        String hashedAnswer = PasswordHasher.hash(normalizedAnswer);
+
+
+        String sql = "INSERT INTO users (username, pass_hash, security_question_1, security_answer_hash_1) VALUES (?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, username);
+            pstmt.setString(2, hashedPassword);
+            pstmt.setString(3, securityQuestion); // Safe to store as plain text
+            pstmt.setString(4, hashedAnswer);     // NEVER store as plain text!
+
             pstmt.executeUpdate();
-            System.out.println("Success:User "+username+" Registered Successfully");
+            System.out.println("Success: User " + username + " registered with Layer 2 Security.");
             return true;
-        }
-        catch(SQLException e){
+
+        } catch (SQLException e) {
             System.out.println("Error: Could not register user. Username might already exist.");
             return false;
         }
     }
 
-    //User Log in method
+    public static String getSecurityQuestion(String username) {
+        String sql = "SELECT security_question_1 FROM users WHERE username = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-    public static boolean loginUser(String username, String plainTextPassword) {
-        String sql = "SELECT pass_hash FROM users WHERE username = ?";
+            pstmt.setString(1, username);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("security_question_1");
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println("Error connecting to database.");
+        }
+        return null; // Return nothing if the user doesn't exist
+    }
+
+    /**
+     * Login method
+     */
+    public static boolean loginUser(String username, String plainTextPassword, String typedAnswer) {
+        String sql = "SELECT pass_hash, security_answer_hash_1 FROM users WHERE username = ?";
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
             pstmt.setString(1, username);
             try (ResultSet rs = pstmt.executeQuery()) {
-
                 if (rs.next()) {
-                    String savedHash = rs.getString("pass_hash");
+                    String savedPassHash = rs.getString("pass_hash");
+                    String savedAnswerHash = rs.getString("security_answer_hash_1");
 
-                    if (PasswordHasher.verify(plainTextPassword, savedHash)) {
-                        System.out.println("Success: Welcome back, " + username + "!");
-                        return true;
+                    // Verify Layer 1 (Password)
+                    if (PasswordHasher.verify(plainTextPassword, savedPassHash)) {
+
+                        // Normalize and Verify Layer 2 (Security Answer)
+                        String normalizedAnswer = typedAnswer.trim().toLowerCase();
+                        if (PasswordHasher.verify(normalizedAnswer, savedAnswerHash)) {
+                            System.out.println("Success: Welcome back, " + username + "! Identity fully verified.");
+                            return true;
+                        } else {
+                            System.out.println("Error: Security answer incorrect.");
+                            return false;
+                        }
                     }
                 }
             }
@@ -50,7 +91,44 @@ public class AuthManager {
             return false;
 
         } catch (SQLException e) {
-            System.out.println("Error: Database connection failed during login.");
+            System.out.println("Error: Database connection failed.");
+            return false;
+        }
+    }
+
+    /**
+     * Destructive Action: Deletes a user, but requires their password to confirm identity.
+     */
+    public static boolean deleteUser(String username, String plainTextPassword) {
+        // First, we run a mini-login check to ensure they know the password
+        String verifySql = "SELECT pass_hash FROM users WHERE username = ?";
+        String deleteSql = "DELETE FROM users WHERE username = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement verifyStmt = conn.prepareStatement(verifySql)) {
+
+            verifyStmt.setString(1, username);
+            try (ResultSet rs = verifyStmt.executeQuery()) {
+                if (rs.next()) {
+                    String savedHash = rs.getString("pass_hash");
+
+                    // If the password is correct, we execute the deletion
+                    if (PasswordHasher.verify(plainTextPassword, savedHash)) {
+
+                        try (PreparedStatement deleteStmt = conn.prepareStatement(deleteSql)) {
+                            deleteStmt.setString(1, username);
+                            deleteStmt.executeUpdate();
+                            System.out.println("System: Account for '" + username + "' has been permanently erased.");
+                            return true;
+                        }
+                    }
+                }
+            }
+            System.out.println("Error: Incorrect password. Deletion aborted.");
+            return false;
+
+        } catch (SQLException e) {
+            System.out.println("Error: Could not connect to database.");
             return false;
         }
     }
