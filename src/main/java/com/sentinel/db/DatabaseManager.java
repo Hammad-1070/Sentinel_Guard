@@ -6,7 +6,7 @@ import java.sql.SQLException;
 
 public class DatabaseManager{
 
-    private static final String URL = "jdbc:mysql://localhost:3306/sentinel_guard_DB";
+    private static final String URL = "jdbc:mysql://localhost:3306/sentinel_guard_db_01";
 
     private static final String USER="root";
     private static final String PASSOWRD="1234";
