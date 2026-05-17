@@ -6,14 +6,14 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
 
-        // The Scanner is our tool to read text from the keyboard
+
         Scanner scanner = new Scanner(System.in);
 
         System.out.println("=========================================");
         System.out.println("      SENTINEL GUARD - SYSTEM TERMINAL   ");
         System.out.println("=========================================");
 
-        // A single loop keeps the menu running until we type '4'
+
         while (true) {
             System.out.println("\n1. Register New User");
             System.out.println("2. System Login (2FA)");
@@ -43,11 +43,9 @@ public class Main {
                 System.out.print("Enter username: ");
                 String user = scanner.nextLine();
 
-                // Fetch the question BEFORE asking for the password
-                String question = AuthManager.getSecurityQuestion(user);
+                String question = com.sentinel.security.AuthManager.getSecurityQuestion(user);
 
                 if (question == null) {
-                    // Security rule: If user doesn't exist, don't tell the hacker! Just pretend it failed.
                     System.out.print("Enter password: ");
                     scanner.nextLine();
                     System.out.println("Error: Invalid username or password.");
@@ -60,7 +58,39 @@ public class Main {
                     System.out.print("Answer: ");
                     String answer = scanner.nextLine();
 
-                    AuthManager.loginUser(user, pass, answer);
+
+                    boolean isLoggedIn = com.sentinel.security.AuthManager.loginUser(user, pass, answer);
+
+
+                    if (isLoggedIn) {
+                        while (true) {
+                            System.out.println("\n--- VAULT TERMINAL (" + user + ") ---");
+                            System.out.println("1. Write a new secure note");
+                            System.out.println("2. Read all secure notes");
+                            System.out.println("3. Log out");
+                            System.out.print("Command: ");
+
+                            String sessionChoice = scanner.nextLine();
+
+                            if (sessionChoice.equals("1")) {
+                                System.out.print("Note Title: ");
+                                String title = scanner.nextLine();
+                                System.out.print("Classified Content: ");
+                                String content = scanner.nextLine();
+
+                                com.sentinel.core.VaultManager.saveNote(user, title, content);
+
+                            } else if (sessionChoice.equals("2")) {
+                                com.sentinel.core.VaultManager.readNotes(user);
+
+                            } else if (sessionChoice.equals("3")) {
+                                System.out.println("Logging out... Vault sealed.");
+                                break;
+                            } else {
+                                System.out.println("Unrecognized command.");
+                            }
+                        }
+                    }
                 }
 
             } else if (choice.equals("3")) {
@@ -87,22 +117,22 @@ public class Main {
 
             } else if (choice.equals("4")) {
                 System.out.println("Terminating Sentinel Guard secure session...");
-                break; // Exits the while loop and shuts down
+                break;
 
             } else if (choice.equals("5")) {
                 System.out.println("\n--- CLASSIFIED ENCRYPTION TEST ---");
                 System.out.print("Type a highly classified message: ");
                 String secretMessage = scanner.nextLine();
 
-                // 1. Forge a temporary key
+
                 String temporaryKey = com.sentinel.security.CryptoManager.generateMasterKey();
                 System.out.println("\n[+] Forged Key: " + temporaryKey);
 
-                // 2. Lock the message
+
                 String encryptedCypherText = com.sentinel.security.CryptoManager.encrypt(secretMessage, temporaryKey);
                 System.out.println("[+] Encrypted Vault: " + encryptedCypherText);
 
-                // 3. Unlock the message
+
                 String decryptedOriginal = com.sentinel.security.CryptoManager.decrypt(encryptedCypherText, temporaryKey);
                 System.out.println("[+] Decrypted Result: " + decryptedOriginal);}
 
@@ -111,6 +141,6 @@ public class Main {
             }
         }
 
-        scanner.close(); // Clean up resource link
+        scanner.close();
     }
 }
