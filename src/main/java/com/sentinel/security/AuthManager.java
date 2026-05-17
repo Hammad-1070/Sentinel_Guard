@@ -10,28 +10,38 @@ public class AuthManager {
 
     // Registering user
 
+    /**
+     * Registers a new user, forging and securing their personal AES Master Key.
+     */
     public static boolean registerUser(String username, String plainTextPassword, String securityQuestion, String securityAnswer) {
 
-        // 1. Scramble the password
         String hashedPassword = PasswordHasher.hash(plainTextPassword);
+        String hashedAnswer = PasswordHasher.hash(securityAnswer.trim().toLowerCase());
 
-        // 2. Normalize and scramble the security answer
-        String normalizedAnswer = securityAnswer.trim().toLowerCase();
-        String hashedAnswer = PasswordHasher.hash(normalizedAnswer);
+        // --- NEW: THE ENVELOPE ENCRYPTION PROCESS ---
 
+        // 1. Forge the user's personal Master Key
+        String personalMasterKey = CryptoManager.generateMasterKey();
 
-        String sql = "INSERT INTO users (username, pass_hash, security_question_1, security_answer_hash_1) VALUES (?, ?, ?, ?)";
+        // 2. Lock their personal key inside the System Key envelope
+        String lockedKeyEnvelope = CryptoManager.encrypt(personalMasterKey, CryptoManager.SYSTEM_KEY);
+
+        // 3. The Final Blueprint (5 slots now)
+        String sql = "INSERT INTO users (username, pass_hash, security_question_1, security_answer_hash_1, encrypted_master_key) VALUES (?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, username);
             pstmt.setString(2, hashedPassword);
-            pstmt.setString(3, securityQuestion); // Safe to store as plain text
-            pstmt.setString(4, hashedAnswer);     // NEVER store as plain text!
+            pstmt.setString(3, securityQuestion);
+            pstmt.setString(4, hashedAnswer);
+
+            // 4. Slide the locked envelope into the database
+            pstmt.setString(5, lockedKeyEnvelope);
 
             pstmt.executeUpdate();
-            System.out.println("Success: User " + username + " registered with Layer 2 Security.");
+            System.out.println("Success: User " + username + " registered. Personal Master Key securely vaulted.");
             return true;
 
         } catch (SQLException e) {
