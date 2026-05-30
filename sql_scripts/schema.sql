@@ -30,3 +30,13 @@ CREATE TABLE vault_notes (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+
+
+// This will maintain the login details
+
+CREATE TABLE audit_logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    attempted_username VARCHAR(50) NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    log_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
