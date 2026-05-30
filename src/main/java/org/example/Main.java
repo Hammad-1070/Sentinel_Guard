@@ -6,13 +6,11 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
 
-
         Scanner scanner = new Scanner(System.in);
 
         System.out.println("=========================================");
         System.out.println("      SENTINEL GUARD - SYSTEM TERMINAL   ");
         System.out.println("=========================================");
-
 
         while (true) {
             System.out.println("\n1. Register New User");
@@ -58,16 +56,16 @@ public class Main {
                     System.out.print("Answer: ");
                     String answer = scanner.nextLine();
 
-
                     boolean isLoggedIn = com.sentinel.security.AuthManager.loginUser(user, pass, answer);
 
-
                     if (isLoggedIn) {
+                        // --- UPGRADED VAULT TERMINAL SESSION LOOP ---
                         while (true) {
                             System.out.println("\n--- VAULT TERMINAL (" + user + ") ---");
                             System.out.println("1. Write a new secure note");
                             System.out.println("2. Read all secure notes");
-                            System.out.println("3. Log out");
+                            System.out.println("3. Delete a secure note"); // NEW OPTION
+                            System.out.println("4. Log out");              // SHIFTED OPTION
                             System.out.print("Command: ");
 
                             String sessionChoice = scanner.nextLine();
@@ -84,6 +82,15 @@ public class Main {
                                 com.sentinel.core.VaultManager.readNotes(user);
 
                             } else if (sessionChoice.equals("3")) {
+                                System.out.print("Enter the Note ID to incinerate: ");
+                                try {
+                                    int targetId = Integer.parseInt(scanner.nextLine());
+                                    com.sentinel.core.VaultManager.deleteNote(user, targetId);
+                                } catch (NumberFormatException e) {
+                                    System.out.println("Error: Please enter a valid number.");
+                                }
+
+                            } else if (sessionChoice.equals("4")) {
                                 System.out.println("Logging out... Vault sealed.");
                                 break;
                             } else {
@@ -124,19 +131,16 @@ public class Main {
                 System.out.print("Type a highly classified message: ");
                 String secretMessage = scanner.nextLine();
 
-
                 String temporaryKey = com.sentinel.security.CryptoManager.generateMasterKey();
                 System.out.println("\n[+] Forged Key: " + temporaryKey);
-
 
                 String encryptedCypherText = com.sentinel.security.CryptoManager.encrypt(secretMessage, temporaryKey);
                 System.out.println("[+] Encrypted Vault: " + encryptedCypherText);
 
-
                 String decryptedOriginal = com.sentinel.security.CryptoManager.decrypt(encryptedCypherText, temporaryKey);
-                System.out.println("[+] Decrypted Result: " + decryptedOriginal);}
+                System.out.println("[+] Decrypted Result: " + decryptedOriginal);
 
-            else {
+            } else {
                 System.out.println("Error: Unrecognized command.");
             }
         }

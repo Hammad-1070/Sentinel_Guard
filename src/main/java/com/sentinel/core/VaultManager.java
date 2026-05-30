@@ -92,16 +92,19 @@ public class VaultManager {
                 boolean hasNotes = false;
 
 
+                // Loop through every single note the user owns
                 while (rs.next()) {
                     hasNotes = true;
+                    // Grab the ID so the user knows what to target
+                    int noteId = rs.getInt("note_id");
                     String title = rs.getString("note_title");
                     String encryptedContent = rs.getString("encrypted_content");
                     String date = rs.getString("created_at");
 
-                    // Decrypt the content live in memory
                     String decryptedContent = CryptoManager.decrypt(encryptedContent, personalKey);
 
-                    System.out.println("\nTitle: " + title + " | Date: " + date);
+                    // Print the Note ID to the terminal
+                    System.out.println("\n[Note ID: " + noteId + "] Title: " + title + " | Date: " + date);
                     System.out.println("Content: " + decryptedContent);
                     System.out.println("-----------------------------------");
                 }
@@ -112,6 +115,38 @@ public class VaultManager {
             }
         } catch (SQLException e) {
             System.out.println("Error: Failed to open vault.");
+        }
+    }
+
+    public static void deleteNote(String username, int targetNoteId) {
+        int userId = getUserId(username);
+
+        if (userId == -1) {
+            System.out.println("Error: Security clearance denied.");
+            return;
+        }
+
+        // IDOR DEFENSE: We require BOTH the note_id AND the user_id to match.
+        String sql = "DELETE FROM vault_notes WHERE note_id = ? AND user_id = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, targetNoteId);
+            pstmt.setInt(2, userId);
+
+            // executeUpdate returns the number of rows it actually deleted
+            int rowsAffected = pstmt.executeUpdate();
+
+            if (rowsAffected > 0) {
+                System.out.println("System: Note #" + targetNoteId + " has been permanently incinerated.");
+            } else {
+                // If 0 rows were deleted, it means the note doesn't exist, or it belongs to someone else!
+                System.out.println("Error: Note not found, or you do not have permission to delete it.");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error: Failed to incinerate note.");
         }
     }
 }
