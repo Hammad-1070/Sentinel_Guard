@@ -25,7 +25,7 @@ public class SecurityLogger {
         }
     }
 
-   
+
     public static void printRecentLogs() {
         String sql = "SELECT attempted_username, action_type, log_time FROM audit_logs ORDER BY log_time DESC LIMIT 10";
 

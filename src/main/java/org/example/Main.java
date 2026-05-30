@@ -18,6 +18,7 @@ public class Main {
             System.out.println("3. Delete Account");
             System.out.println("4. Shut Down System");
             System.out.println("5. [DEV] Test Encryption Engine");
+            System.out.println("6. [DEV] View Security Audit Logs");
             System.out.println("99. [DEV] Generate Master Key");
             System.out.print("Command: ");
 
@@ -140,7 +141,8 @@ public class Main {
                 String decryptedOriginal = com.sentinel.security.CryptoManager.decrypt(encryptedCypherText, temporaryKey);
                 System.out.println("[+] Decrypted Result: " + decryptedOriginal);
 
-            } else {
+            }  else if (choice.equals("6")) {
+            com.sentinel.security.SecurityLogger.printRecentLogs();} else {
                 System.out.println("Error: Unrecognized command.");
             }
         }

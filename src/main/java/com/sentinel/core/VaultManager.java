@@ -36,7 +36,7 @@ public class VaultManager {
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
                     String lockedEnvelope = rs.getString("encrypted_master_key");
-                    // The Magic Step: Use the .env System Key to unlock their personal key!
+
                     return CryptoManager.decrypt(lockedEnvelope, CryptoManager.SYSTEM_KEY);
                 }
             }
@@ -77,11 +77,20 @@ public class VaultManager {
 
     public static void readNotes(String username) {
         int userId = getUserId(username);
+        if (userId == -1) {
+            System.out.println("Critical Error: Database could not locate your User ID.");
+            return;
+        }
+
         String personalKey = getUnlockedPersonalKey(username);
+        if (personalKey == null) {
+            System.out.println("Critical Error: Failed to unlock your Personal Master Key. Your encryption envelope might be corrupted.");
+            return;
+        }
 
-        if (userId == -1 || personalKey == null) return;
 
-        String sql = "SELECT note_title, encrypted_content, created_at FROM vault_notes WHERE user_id = ?";
+        String sql = "SELECT note_id, note_title, encrypted_content, created_at FROM vault_notes WHERE user_id = ?";
+
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
@@ -91,30 +100,28 @@ public class VaultManager {
                 System.out.println("\n=== YOUR CLASSIFIED VAULT ===");
                 boolean hasNotes = false;
 
-
-                // Loop through every single note the user owns
                 while (rs.next()) {
                     hasNotes = true;
-                    // Grab the ID so the user knows what to target
                     int noteId = rs.getInt("note_id");
                     String title = rs.getString("note_title");
                     String encryptedContent = rs.getString("encrypted_content");
                     String date = rs.getString("created_at");
 
+                    // Decrypt the content live in memory
                     String decryptedContent = CryptoManager.decrypt(encryptedContent, personalKey);
 
-                    // Print the Note ID to the terminal
                     System.out.println("\n[Note ID: " + noteId + "] Title: " + title + " | Date: " + date);
                     System.out.println("Content: " + decryptedContent);
                     System.out.println("-----------------------------------");
                 }
 
                 if (!hasNotes) {
-                    System.out.println("Your vault is currently empty.");
+                    System.out.println("Your vault is currently empty. No notes found.");
                 }
             }
         } catch (SQLException e) {
             System.out.println("Error: Failed to open vault.");
+            System.out.println("MySQL says: " + e.getMessage());
         }
     }
 
@@ -126,7 +133,7 @@ public class VaultManager {
             return;
         }
 
-        // IDOR DEFENSE: We require BOTH the note_id AND the user_id to match.
+
         String sql = "DELETE FROM vault_notes WHERE note_id = ? AND user_id = ?";
 
         try (Connection conn = DatabaseManager.getConnection();
@@ -135,13 +142,13 @@ public class VaultManager {
             pstmt.setInt(1, targetNoteId);
             pstmt.setInt(2, userId);
 
-            // executeUpdate returns the number of rows it actually deleted
+
             int rowsAffected = pstmt.executeUpdate();
 
             if (rowsAffected > 0) {
                 System.out.println("System: Note #" + targetNoteId + " has been permanently incinerated.");
             } else {
-                // If 0 rows were deleted, it means the note doesn't exist, or it belongs to someone else!
+
                 System.out.println("Error: Note not found, or you do not have permission to delete it.");
             }
 

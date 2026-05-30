@@ -10,23 +10,16 @@ public class AuthManager {
 
     // Registering user
 
-    /**
-     * Registers a new user, forging and securing their personal AES Master Key.
-     */
     public static boolean registerUser(String username, String plainTextPassword, String securityQuestion, String securityAnswer) {
 
         String hashedPassword = PasswordHasher.hash(plainTextPassword);
+
         String hashedAnswer = PasswordHasher.hash(securityAnswer.trim().toLowerCase());
 
-        // --- NEW: THE ENVELOPE ENCRYPTION PROCESS ---
-
-        // 1. Forge the user's personal Master Key
         String personalMasterKey = CryptoManager.generateMasterKey();
 
-        // 2. Lock their personal key inside the System Key envelope
         String lockedKeyEnvelope = CryptoManager.encrypt(personalMasterKey, CryptoManager.SYSTEM_KEY);
 
-        // 3. The Final Blueprint (5 slots now)
         String sql = "INSERT INTO users (username, pass_hash, security_question_1, security_answer_hash_1, encrypted_master_key) VALUES (?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseManager.getConnection();
@@ -37,7 +30,7 @@ public class AuthManager {
             pstmt.setString(3, securityQuestion);
             pstmt.setString(4, hashedAnswer);
 
-            // 4. Slide the locked envelope into the database
+
             pstmt.setString(5, lockedKeyEnvelope);
 
             pstmt.executeUpdate();
@@ -67,9 +60,7 @@ public class AuthManager {
         return null; // Return nothing if the user doesn't exist
     }
 
-    /**
-     * Login method
-     */
+
     public static boolean loginUser(String username, String plainTextPassword, String typedAnswer) {
         String sql = "SELECT pass_hash, security_answer_hash_1 FROM users WHERE username = ?";
 
@@ -82,12 +73,17 @@ public class AuthManager {
                     String savedPassHash = rs.getString("pass_hash");
                     String savedAnswerHash = rs.getString("security_answer_hash_1");
 
-                    // Verify Layer 1 (Password)
                     if (PasswordHasher.verify(plainTextPassword, savedPassHash)) {
 
-                        // Normalize and Verify Layer 2 (Security Answer)
+
                         String normalizedAnswer = typedAnswer.trim().toLowerCase();
                         if (PasswordHasher.verify(normalizedAnswer, savedAnswerHash)) {
+                            SecurityLogger.logEvent(username, "LOGIN_SUCCESS");
+                            String updateTimeSql = "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE username = ?";
+                            try (PreparedStatement timeStmt = conn.prepareStatement(updateTimeSql)) {
+                                timeStmt.setString(1, username);
+                                timeStmt.executeUpdate();
+                            }
                             System.out.println("Success: Welcome back, " + username + "! Identity fully verified.");
                             return true;
                         } else {
@@ -97,6 +93,7 @@ public class AuthManager {
                     }
                 }
             }
+            SecurityLogger.logEvent(username, "LOGIN_FAILED");
             System.out.println("Error: Invalid username or password.");
             return false;
 
@@ -106,9 +103,6 @@ public class AuthManager {
         }
     }
 
-    /**
-     * Destructive Action: Deletes a user, but requires their password to confirm identity.
-     */
     public static boolean deleteUser(String username, String plainTextPassword) {
         // First, we run a mini-login check to ensure they know the password
         String verifySql = "SELECT pass_hash FROM users WHERE username = ?";
