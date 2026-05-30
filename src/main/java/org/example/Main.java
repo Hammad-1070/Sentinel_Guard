@@ -16,7 +16,7 @@ public class Main {
 
         SwingUtilities.invokeLater(() -> {
             SentinelFrame mainMonitor = new SentinelFrame();
-            
+
             mainMonitor.setVisible(true);
         });
     }
