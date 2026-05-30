@@ -97,7 +97,7 @@ public class VaultPanel extends JPanel {
         });
     }
 
-  
+
     private void refreshVaultData() {
         terminalDisplay.setText(""); // Clear the screen
 
