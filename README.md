@@ -4,7 +4,7 @@
 Sentinel Guard is a secure, standalone desktop application engineered to vault classified text documents. It features a multi-layered security architecture, including AES-256 envelope encryption, BCrypt cryptographic hashing, and a custom asynchronous UI designed to prevent unauthorized session access.
 
 **Lead Architect:** Muhammad Hammad Saleem  
-**Version:** 1.2 (Production Build)
+**Version:** 1 (Production Build)
 
 ---
 
