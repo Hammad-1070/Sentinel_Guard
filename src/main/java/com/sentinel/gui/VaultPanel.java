@@ -33,22 +33,23 @@ public class VaultPanel extends JPanel {
         terminalDisplay.setLineWrap(true);
         terminalDisplay.setWrapStyleWord(true);
 
-
         JScrollPane scrollPane = new JScrollPane(terminalDisplay);
         add(scrollPane, BorderLayout.CENTER);
 
-
+        // Load the notes immediately when the screen opens!
         refreshVaultData();
 
-
-        JPanel controlPanel = new JPanel(new GridLayout(1, 3, 10, 0)); // 1 row, 3 columns
+        // --- 3. THE CONTROL CONSOLE (SOUTH) ---
+        JPanel controlPanel = new JPanel(new GridLayout(1, 4, 10, 0)); // 4 Columns!
 
         JButton writeNoteBtn = new JButton("Write Classified Note");
         JButton deleteNoteBtn = new JButton("Incinerate Note");
+        JButton settingsBtn = new JButton("System Settings"); // --- NEW BUTTON ---
         JButton logoutBtn = new JButton("Seal Vault (Logout)");
 
         controlPanel.add(writeNoteBtn);
         controlPanel.add(deleteNoteBtn);
+        controlPanel.add(settingsBtn); // --- ADDED TO PANEL ---
         controlPanel.add(logoutBtn);
         add(controlPanel, BorderLayout.SOUTH);
 
@@ -61,7 +62,6 @@ public class VaultPanel extends JPanel {
 
             String content = JOptionPane.showInputDialog(this, "Enter Classified Content:");
             if (content == null || content.trim().isEmpty()) return;
-
 
             boolean success = VaultManager.saveNote(activeUser, title, content);
             if (success) {
@@ -91,12 +91,16 @@ public class VaultPanel extends JPanel {
             }
         });
 
+        // --- NEW WIRE: ROUTE TO SETTINGS PANEL ---
+        settingsBtn.addActionListener(e -> {
+            mainMonitor.switchPanel(new SettingsPanel(mainMonitor, activeUser));
+        });
+
         logoutBtn.addActionListener(e -> {
             // Destroy the screen and go back to login
             mainMonitor.switchPanel(new LoginPanel(mainMonitor));
         });
     }
-
 
     private void refreshVaultData() {
         terminalDisplay.setText(""); // Clear the screen

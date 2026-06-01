@@ -136,4 +136,40 @@ public class AuthManager {
             return false;
         }
     }
+
+
+    public static boolean changePassword(String username, String currentPlainPassword, String newPlainPassword) {
+        String fetchSql = "SELECT pass_hash FROM users WHERE username = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement fetchStmt = conn.prepareStatement(fetchSql)) {
+
+            fetchStmt.setString(1, username);
+            try (ResultSet rs = fetchStmt.executeQuery()) {
+                if (rs.next()) {
+                    String savedHash = rs.getString("pass_hash");
+
+                    if (PasswordHasher.verify(currentPlainPassword, savedHash)) {
+
+                        String newHash = PasswordHasher.hash(newPlainPassword);
+
+                        String updateSql = "UPDATE users SET pass_hash = ? WHERE username = ?";
+                        try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                            updateStmt.setString(1, newHash);
+                            updateStmt.setString(2, username);
+                            updateStmt.executeUpdate();
+
+                            SecurityLogger.logEvent(username, "PASSWORD_CHANGED");
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println("Error: Database failure during password rotation.");
+        }
+
+        SecurityLogger.logEvent(username, "PASSWORD_CHANGE_FAILED");
+        return false;
+    }
 }
