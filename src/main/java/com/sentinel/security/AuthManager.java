@@ -9,15 +9,11 @@ import java.sql.ResultSet;
 public class AuthManager {
 
     // Registering user
-
     public static boolean registerUser(String username, String plainTextPassword, String securityQuestion, String securityAnswer) {
 
         String hashedPassword = PasswordHasher.hash(plainTextPassword);
-
         String hashedAnswer = PasswordHasher.hash(securityAnswer.trim().toLowerCase());
-
         String personalMasterKey = CryptoManager.generateMasterKey();
-
         String lockedKeyEnvelope = CryptoManager.encrypt(personalMasterKey, CryptoManager.SYSTEM_KEY);
 
         String sql = "INSERT INTO users (username, pass_hash, security_question_1, security_answer_hash_1, encrypted_master_key) VALUES (?, ?, ?, ?, ?)";
@@ -29,8 +25,6 @@ public class AuthManager {
             pstmt.setString(2, hashedPassword);
             pstmt.setString(3, securityQuestion);
             pstmt.setString(4, hashedAnswer);
-
-
             pstmt.setString(5, lockedKeyEnvelope);
 
             pstmt.executeUpdate();
@@ -57,9 +51,8 @@ public class AuthManager {
         } catch (SQLException e) {
             System.out.println("Error connecting to database.");
         }
-        return null; // Return nothing if the user doesn't exist
+        return null;
     }
-
 
     public static boolean loginUser(String username, String plainTextPassword, String typedAnswer) {
         String sql = "SELECT pass_hash, security_answer_hash_1 FROM users WHERE username = ?";
@@ -74,7 +67,6 @@ public class AuthManager {
                     String savedAnswerHash = rs.getString("security_answer_hash_1");
 
                     if (PasswordHasher.verify(plainTextPassword, savedPassHash)) {
-
 
                         String normalizedAnswer = typedAnswer.trim().toLowerCase();
                         if (PasswordHasher.verify(normalizedAnswer, savedAnswerHash)) {
@@ -104,7 +96,6 @@ public class AuthManager {
     }
 
     public static boolean deleteUser(String username, String plainTextPassword) {
-        // First, we run a mini-login check to ensure they know the password
         String verifySql = "SELECT pass_hash FROM users WHERE username = ?";
         String deleteSql = "DELETE FROM users WHERE username = ?";
 
@@ -116,7 +107,6 @@ public class AuthManager {
                 if (rs.next()) {
                     String savedHash = rs.getString("pass_hash");
 
-                    // If the password is correct, we execute the deletion
                     if (PasswordHasher.verify(plainTextPassword, savedHash)) {
 
                         try (PreparedStatement deleteStmt = conn.prepareStatement(deleteSql)) {
@@ -136,7 +126,6 @@ public class AuthManager {
             return false;
         }
     }
-
 
     public static boolean changePassword(String username, String currentPlainPassword, String newPlainPassword) {
         String fetchSql = "SELECT pass_hash FROM users WHERE username = ?";
@@ -170,6 +159,47 @@ public class AuthManager {
         }
 
         SecurityLogger.logEvent(username, "PASSWORD_CHANGE_FAILED");
+        return false;
+    }
+
+    public static boolean recoverPassword(String username, String securityAnswer, String newPlainPassword) {
+        // FIXED: Now specifically targets security_answer_hash_1
+        String fetchSql = "SELECT security_answer_hash_1 FROM users WHERE username = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement fetchStmt = conn.prepareStatement(fetchSql)) {
+
+            fetchStmt.setString(1, username.trim());
+
+            try (ResultSet rs = fetchStmt.executeQuery()) {
+                if (rs.next()) {
+                    // FIXED: Pulls from security_answer_hash_1
+                    String savedAnswerHash = rs.getString("security_answer_hash_1");
+
+                    String exactAnswer = securityAnswer.trim();
+                    String lowerAnswer = securityAnswer.trim().toLowerCase();
+
+                    if (PasswordHasher.verify(exactAnswer, savedAnswerHash) || PasswordHasher.verify(lowerAnswer, savedAnswerHash)) {
+
+                        String newHash = PasswordHasher.hash(newPlainPassword);
+
+                        String updateSql = "UPDATE users SET pass_hash = ? WHERE username = ?";
+                        try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                            updateStmt.setString(1, newHash);
+                            updateStmt.setString(2, username.trim());
+                            updateStmt.executeUpdate();
+
+                            SecurityLogger.logEvent(username, "EMERGENCY_PASSWORD_RECOVERY_SUCCESS");
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println("Error: Database failure during recovery protocol.");
+        }
+
+        SecurityLogger.logEvent(username, "RECOVERY_ATTEMPT_FAILED");
         return false;
     }
 }

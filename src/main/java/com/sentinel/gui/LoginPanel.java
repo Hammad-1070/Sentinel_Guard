@@ -93,9 +93,68 @@ public class LoginPanel extends JPanel {
             System.out.println("Switching to Registration channel...");
         });
 
+        // --- 6. THE FORGOT PASSWORD LINK ---
+        JButton forgotPassButton = new JButton("Emergency Override (Forgot Password)");
+        forgotPassButton.setForeground(new Color(200, 150, 0)); // Warning Orange
+        gbc.gridy = 5;
+        add(forgotPassButton, gbc);
+
+
         registerButton.addActionListener(e -> {
             // Switch the TV Channel to the Registration Screen!
             mainMonitor.switchPanel(new RegisterPanel(mainMonitor));
+        });
+
+        forgotPassButton.addActionListener(e -> {
+            // Step 1: Ask for the username
+            String targetUser = JOptionPane.showInputDialog(this, "Enter your Username for recovery:");
+            if (targetUser == null || targetUser.trim().isEmpty()) return;
+
+            // Step 2: Fetch their specific security question from the database
+            String question = com.sentinel.security.AuthManager.getSecurityQuestion(targetUser);
+            if (question == null) {
+                JOptionPane.showMessageDialog(this, "Error: Agent not found in the registry.", "Recovery Failed", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Step 3: Ask the question
+            String answer = JOptionPane.showInputDialog(this,
+                    "Identity Verification Required:\n" + question,
+                    "Emergency Recovery",
+                    JOptionPane.WARNING_MESSAGE);
+
+            if (answer == null || answer.trim().isEmpty()) return;
+
+            // Step 4: Build a secure popup for the new password
+            JPasswordField newPassField = new JPasswordField(10);
+            JPasswordField confirmPassField = new JPasswordField(10);
+
+            JPanel myPanel = new JPanel(new GridLayout(2, 2, 5, 5));
+            myPanel.add(new JLabel("New Password:"));
+            myPanel.add(newPassField);
+            myPanel.add(new JLabel("Confirm Password:"));
+            myPanel.add(confirmPassField);
+
+            int result = JOptionPane.showConfirmDialog(this, myPanel, "Forge New Clearance Codes", JOptionPane.OK_CANCEL_OPTION);
+
+            if (result == JOptionPane.OK_OPTION) {
+                String newPass = new String(newPassField.getPassword());
+                String confirmPass = new String(confirmPassField.getPassword());
+
+                if (newPass.isEmpty() || !newPass.equals(confirmPass)) {
+                    JOptionPane.showMessageDialog(this, "Error: Passwords cannot be empty and must match.", "Recovery Failed", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                // Step 5: Send it to the Backend!
+                boolean success = com.sentinel.security.AuthManager.recoverPassword(targetUser, answer, newPass);
+
+                if (success) {
+                    JOptionPane.showMessageDialog(this, "Success: Credentials rotated. You may now log in.", "Override Complete", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Access Denied: Incorrect security answer.", "Intrusion Detected", JOptionPane.ERROR_MESSAGE);
+                }
+            }
         });
     }
 }
