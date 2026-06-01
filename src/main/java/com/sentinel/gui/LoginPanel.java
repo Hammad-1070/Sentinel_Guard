@@ -82,7 +82,7 @@ public class LoginPanel extends JPanel {
 
                 if (isLoggedIn) {
 
-                    mainMonitor.switchPanel(new VaultPanel(mainMonitor, user));
+                    mainMonitor.switchPanel(new LoadingPanel(mainMonitor, user));
                 } else {
                     JOptionPane.showMessageDialog(this, "Intrusion Detected: Incorrect password or security answer.", "Access Denied", JOptionPane.ERROR_MESSAGE);
                 }
@@ -98,6 +98,12 @@ public class LoginPanel extends JPanel {
         forgotPassButton.setForeground(new Color(200, 150, 0)); // Warning Orange
         gbc.gridy = 5;
         add(forgotPassButton, gbc);
+
+        // --- 7. THE ABOUT SYSTEM BUTTON ---
+        JButton aboutButton = new JButton("About Sentinel Guard");
+        aboutButton.setForeground(new Color(0, 150, 255)); // Professional Cyber Blue
+        gbc.gridy = 6;
+        add(aboutButton, gbc);
 
 
         registerButton.addActionListener(e -> {
@@ -155,6 +161,31 @@ public class LoginPanel extends JPanel {
                     JOptionPane.showMessageDialog(this, "Access Denied: Incorrect security answer.", "Intrusion Detected", JOptionPane.ERROR_MESSAGE);
                 }
             }
+        });
+
+        aboutButton.addActionListener(e -> {
+            String aboutText =
+                    "=========================================\n" +
+                            "               SENTINEL GUARD\n" +
+                            "     Military-Grade Encrypted Desktop Vault\n" +
+                            "=========================================\n\n" +
+                            "[ CORE ARCHITECTURE ]\n" +
+                            "• Engine: Java (Swing GUI Asynchronous)\n" +
+                            "• Database: MySQL Relational Database\n" +
+                            "• Deployment: Maven Automated Pipeline & Launch4j\n\n" +
+                            "[ CRYPTOGRAPHIC PROTOCOLS ]\n" +
+                            "• Master Vault: AES-256 Envelope Encryption\n" +
+                            "• Credential Storage: BCrypt Hash Engine\n" +
+                            "• Multi-Factor: Layer 2 Security Question Protocol\n\n" +
+                            "=========================================\n" +
+                            " Lead Architect & Backend Developer:\n" +
+                            " MUHAMMAD HAMMAD SALEEM\n" +
+                            "=========================================";
+
+            JOptionPane.showMessageDialog(this,
+                    aboutText,
+                    "System Specifications",
+                    JOptionPane.INFORMATION_MESSAGE);
         });
     }
 }

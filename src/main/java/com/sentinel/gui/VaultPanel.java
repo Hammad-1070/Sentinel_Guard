@@ -1,9 +1,11 @@
 package com.sentinel.gui;
 
 import com.sentinel.core.VaultManager;
+import com.sentinel.security.SecurityLogger;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.AWTEventListener;
 import java.util.List;
 
 public class VaultPanel extends JPanel {
@@ -12,56 +14,73 @@ public class VaultPanel extends JPanel {
     private String activeUser;
     private JTextArea terminalDisplay;
 
-    // --- NEW ANIMATION VARIABLES ---
+    // --- ANIMATION VARIABLES ---
     private Timer typewriterTimer;
     private int charIndex = 0;
     private String targetText = "";
+
+    // --- SECURITY TIMER VARIABLES ---
+    private Timer countdownTimer;
+    private JLabel timerLabel;
+    private int timeRemaining = 300; // 300 seconds = 5 Minutes
+    private AWTEventListener globalTripwire;
 
     public VaultPanel(SentinelFrame mainMonitor, String username) {
         this.mainMonitor = mainMonitor;
         this.activeUser = username;
 
-        setLayout(new BorderLayout(10, 10)); // 10px padding between zones
-        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20)); // Padding around the edges
+        setLayout(new BorderLayout(10, 10));
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         // --- 1. THE HEADER (NORTH) ---
-        JLabel headerLabel = new JLabel("SECURE VAULT TERMINAL | ACTIVE CLEARANCE: " + activeUser.toUpperCase());
+        JPanel headerPanel = new JPanel(new BorderLayout());
+
+        JLabel headerLabel = new JLabel("SECURE VAULT TERMINAL | CLEARANCE: " + activeUser.toUpperCase());
         headerLabel.setFont(new Font("Monospaced", Font.BOLD, 18));
-        headerLabel.setForeground(new Color(0, 200, 0)); // Hacker Green text
-        headerLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        add(headerLabel, BorderLayout.NORTH);
+        headerLabel.setForeground(new Color(0, 255, 0)); // Hacker Green text
+        headerPanel.add(headerLabel, BorderLayout.WEST);
+
+        // THE DIGITAL CLOCK
+        timerLabel = new JLabel("AUTO-LOCK: 05:00");
+        timerLabel.setFont(new Font("Monospaced", Font.BOLD, 18));
+        timerLabel.setForeground(new Color(220, 20, 60)); // Warning Alarm Red
+        headerPanel.add(timerLabel, BorderLayout.EAST);
+
+        add(headerPanel, BorderLayout.NORTH);
 
         // --- 2. THE DATA DISPLAY (CENTER) ---
         terminalDisplay = new JTextArea();
-        terminalDisplay.setEditable(false); // Make it read-only
+        terminalDisplay.setEditable(false);
         terminalDisplay.setFont(new Font("Monospaced", Font.PLAIN, 14));
         terminalDisplay.setLineWrap(true);
         terminalDisplay.setWrapStyleWord(true);
+        terminalDisplay.setBackground(Color.BLACK);
+        terminalDisplay.setForeground(new Color(0, 255, 0));
 
         JScrollPane scrollPane = new JScrollPane(terminalDisplay);
         add(scrollPane, BorderLayout.CENTER);
 
-        // Load the notes immediately when the screen opens!
         refreshVaultData();
 
         // --- 3. THE CONTROL CONSOLE (SOUTH) ---
-        JPanel controlPanel = new JPanel(new GridLayout(1, 4, 10, 0)); // 4 Columns!
+        JPanel controlPanel = new JPanel(new GridLayout(1, 4, 10, 0));
 
         JButton writeNoteBtn = new JButton("Write Classified Note");
         JButton deleteNoteBtn = new JButton("Incinerate Note");
-        JButton settingsBtn = new JButton("System Settings"); // --- NEW BUTTON ---
+        JButton settingsBtn = new JButton("System Settings");
         JButton logoutBtn = new JButton("Seal Vault (Logout)");
 
         controlPanel.add(writeNoteBtn);
         controlPanel.add(deleteNoteBtn);
-        controlPanel.add(settingsBtn); // --- ADDED TO PANEL ---
+        controlPanel.add(settingsBtn);
         controlPanel.add(logoutBtn);
         add(controlPanel, BorderLayout.SOUTH);
 
-        // --- CLICK EVENTS ---
+        // --- INITIATE SECURITY PROTOCOLS ---
+        startSecurityTimer();
 
+        // --- CLICK EVENTS ---
         writeNoteBtn.addActionListener(e -> {
-            // Popups to gather the title and content
             String title = JOptionPane.showInputDialog(this, "Enter Note Title:");
             if (title == null || title.trim().isEmpty()) return;
 
@@ -70,8 +89,7 @@ public class VaultPanel extends JPanel {
 
             boolean success = VaultManager.saveNote(activeUser, title, content);
             if (success) {
-                JOptionPane.showMessageDialog(this, "Note securely vaulted.");
-                refreshVaultData(); // Reload the screen to show the new note!
+                refreshVaultData();
             } else {
                 JOptionPane.showMessageDialog(this, "Encryption failure.", "Error", JOptionPane.ERROR_MESSAGE);
             }
@@ -86,8 +104,7 @@ public class VaultPanel extends JPanel {
                 boolean success = VaultManager.deleteNote(activeUser, targetId);
 
                 if (success) {
-                    JOptionPane.showMessageDialog(this, "Target obliterated.");
-                    refreshVaultData(); // Reload the screen to remove the ghost
+                    refreshVaultData();
                 } else {
                     JOptionPane.showMessageDialog(this, "Target not found or access denied.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
@@ -96,19 +113,76 @@ public class VaultPanel extends JPanel {
             }
         });
 
-        // --- NEW WIRE: ROUTE TO SETTINGS PANEL ---
         settingsBtn.addActionListener(e -> {
+            disarmSecurityTimer(); // Turn off timer before switching rooms
             mainMonitor.switchPanel(new SettingsPanel(mainMonitor, activeUser));
         });
 
         logoutBtn.addActionListener(e -> {
-            // Destroy the screen and go back to login
-            mainMonitor.switchPanel(new LoginPanel(mainMonitor));
+            executeManualLogout();
         });
     }
 
+    // --- SECURITY TIMER METHODS ---
+
+    private void startSecurityTimer() {
+        // 1. Build the Auto-Kill Clock (Ticks down every 1000 milliseconds / 1 second)
+        countdownTimer = new Timer(1000, e -> {
+            timeRemaining--;
+
+            // Format the math into a digital clock display (e.g., 04:59)
+            int minutes = timeRemaining / 60;
+            int seconds = timeRemaining % 60;
+            timerLabel.setText(String.format("AUTO-LOCK: %02d:%02d", minutes, seconds));
+
+            // If the clock hits 0, violently kill the session
+            if (timeRemaining <= 0) {
+                executeAutoKill();
+            }
+        });
+        countdownTimer.start();
+
+        // 2. Build the Global Tripwire (Senses ALL mouse and keyboard movement)
+        globalTripwire = new AWTEventListener() {
+            @Override
+            public void eventDispatched(AWTEvent event) {
+                // If they move the mouse or press a key, reset the clock to 5 minutes!
+                timeRemaining = 300;
+                timerLabel.setText("AUTO-LOCK: 05:00");
+            }
+        };
+
+        // Attach the tripwire to the entire Java application window
+        Toolkit.getDefaultToolkit().addAWTEventListener(globalTripwire,
+                AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK | AWTEvent.MOUSE_MOTION_EVENT_MASK);
+    }
+
+    private void disarmSecurityTimer() {
+        // CRITICAL: We must destroy the tripwire when we leave, or it causes memory leaks!
+        if (countdownTimer != null) countdownTimer.stop();
+        if (globalTripwire != null) {
+            Toolkit.getDefaultToolkit().removeAWTEventListener(globalTripwire);
+        }
+    }
+
+    private void executeAutoKill() {
+        disarmSecurityTimer();
+        SecurityLogger.logEvent(activeUser, "SESSION_TIMEOUT_FORCED_LOGOUT");
+        JOptionPane.showMessageDialog(mainMonitor,
+                "SESSION TIMEOUT.\nNo activity detected for 5 minutes. Vault sealed.",
+                "Security Protocol", JOptionPane.WARNING_MESSAGE);
+        mainMonitor.switchPanel(new LoginPanel(mainMonitor));
+    }
+
+    private void executeManualLogout() {
+        disarmSecurityTimer();
+        SecurityLogger.logEvent(activeUser, "MANUAL_LOGOUT");
+        mainMonitor.switchPanel(new LoginPanel(mainMonitor));
+    }
+
+    // --- MATRIX TYPEWRITER METHODS ---
+
     private void refreshVaultData() {
-        // 1. Gather all the notes into one massive String first
         List<String> notes = VaultManager.readNotesForGUI(activeUser);
         StringBuilder fullText = new StringBuilder();
 
@@ -119,40 +193,27 @@ public class VaultPanel extends JPanel {
                 fullText.append(note).append("\n\n");
             }
         }
-
-        // 2. Send the massive String to the animation engine
         animateText(fullText.toString());
     }
 
-    /**
-     * THE MATRIX ENGINE: Types text asynchronously without freezing the GUI.
-     */
     private void animateText(String text) {
-        // If an old animation is still running, kill it before starting a new one
         if (typewriterTimer != null && typewriterTimer.isRunning()) {
             typewriterTimer.stop();
         }
 
-        terminalDisplay.setText(""); // Wipe the screen clean
+        terminalDisplay.setText("");
         targetText = text;
         charIndex = 0;
 
-        // Create a clock that ticks every 15 milliseconds (Lower number = faster typing)
         typewriterTimer = new Timer(15, e -> {
             if (charIndex < targetText.length()) {
-                // Drop one letter onto the screen
                 terminalDisplay.append(String.valueOf(targetText.charAt(charIndex)));
                 charIndex++;
-
-                // Force the screen to auto-scroll down as it types
                 terminalDisplay.setCaretPosition(terminalDisplay.getDocument().getLength());
             } else {
-                // The whole document is finished typing. Stop the clock.
                 ((Timer) e.getSource()).stop();
             }
         });
-
-        // Fire the engine!
         typewriterTimer.start();
     }
 }
