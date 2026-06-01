@@ -12,6 +12,11 @@ public class VaultPanel extends JPanel {
     private String activeUser;
     private JTextArea terminalDisplay;
 
+    // --- NEW ANIMATION VARIABLES ---
+    private Timer typewriterTimer;
+    private int charIndex = 0;
+    private String targetText = "";
+
     public VaultPanel(SentinelFrame mainMonitor, String username) {
         this.mainMonitor = mainMonitor;
         this.activeUser = username;
@@ -103,19 +108,51 @@ public class VaultPanel extends JPanel {
     }
 
     private void refreshVaultData() {
-        terminalDisplay.setText(""); // Clear the screen
-
+        // 1. Gather all the notes into one massive String first
         List<String> notes = VaultManager.readNotesForGUI(activeUser);
+        StringBuilder fullText = new StringBuilder();
 
         if (notes.isEmpty()) {
-            terminalDisplay.append("Vault is completely empty.\nNo classified documents found.");
+            fullText.append("SYSTEM ALARM: Vault is completely empty.\nNo classified documents found.");
         } else {
             for (String note : notes) {
-                terminalDisplay.append(note + "\n\n");
+                fullText.append(note).append("\n\n");
             }
         }
 
-        // Scroll back to the top automatically
-        terminalDisplay.setCaretPosition(0);
+        // 2. Send the massive String to the animation engine
+        animateText(fullText.toString());
+    }
+
+    /**
+     * THE MATRIX ENGINE: Types text asynchronously without freezing the GUI.
+     */
+    private void animateText(String text) {
+        // If an old animation is still running, kill it before starting a new one
+        if (typewriterTimer != null && typewriterTimer.isRunning()) {
+            typewriterTimer.stop();
+        }
+
+        terminalDisplay.setText(""); // Wipe the screen clean
+        targetText = text;
+        charIndex = 0;
+
+        // Create a clock that ticks every 15 milliseconds (Lower number = faster typing)
+        typewriterTimer = new Timer(15, e -> {
+            if (charIndex < targetText.length()) {
+                // Drop one letter onto the screen
+                terminalDisplay.append(String.valueOf(targetText.charAt(charIndex)));
+                charIndex++;
+
+                // Force the screen to auto-scroll down as it types
+                terminalDisplay.setCaretPosition(terminalDisplay.getDocument().getLength());
+            } else {
+                // The whole document is finished typing. Stop the clock.
+                ((Timer) e.getSource()).stop();
+            }
+        });
+
+        // Fire the engine!
+        typewriterTimer.start();
     }
 }
